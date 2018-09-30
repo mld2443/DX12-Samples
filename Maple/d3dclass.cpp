@@ -32,8 +32,9 @@ D3DClass::~D3DClass()
 
 bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
 {
-	D3D_FEATURE_LEVEL featureLevel;
 	HRESULT result;
+	ID3D12Debug* debugController;
+	D3D_FEATURE_LEVEL featureLevel;
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc;
 	IDXGIFactory4* factory;
 	IDXGIAdapter* adapter;
@@ -55,6 +56,23 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 	// Set the feature level to DirectX 12.1 to enable using all the DirectX 12 features.
 	// Note: Not all cards support full DirectX 12, this feature level may need to be reduced on some cards to 12.0.
 	featureLevel = D3D_FEATURE_LEVEL_12_1;
+
+#if defined(_DEBUG)
+	// Create the Direct3D debug controller.
+	result = D3D12GetDebugInterface(__uuidof(ID3D12Debug), (void**)&debugController);
+	if (FAILED(result))
+	{
+		MessageBox(hwnd, L"Could not enable Direct3D debugging.", L"Debugger Failure", MB_OK);
+		return false;
+	}
+
+	// Enable the debug layer.
+	debugController->EnableDebugLayer();
+
+	// Release the debug controller.
+	debugController->Release();
+	debugController = nullptr;
+#endif
 
 	// Create the Direct3D 12 device.
 	result = D3D12CreateDevice(nullptr, featureLevel, __uuidof(ID3D12Device), (void**)&m_device);

@@ -32,15 +32,16 @@ public:
 	bool Initialize(int, int, HWND, bool, bool);
 	void Shutdown();
 
-	bool Render();
+	bool Render(float, float, float, float);
 
 private:
-	bool						m_vsync_enabled;
+	bool				m_vsync_enabled;
+	int					m_videoCardMemory;
+	char				m_videoCardDescription[128];
+	IDXGISwapChain3*	m_swapChain;
+
 	ID3D12Device*				m_device;
 	ID3D12CommandQueue*			m_commandQueue;
-	int							m_videoCardMemory;
-	char						m_videoCardDescription[128];
-	IDXGISwapChain3*			m_swapChain;
 	ID3D12DescriptorHeap*		m_renderTargetViewHeap;
 	ID3D12Resource*				m_backBufferRenderTarget[2];
 	unsigned int				m_bufferIndex;

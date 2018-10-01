@@ -6,9 +6,10 @@
 
 D3DClass::D3DClass()
 {
+	m_swapChain = nullptr;
+
 	m_device = nullptr;
 	m_commandQueue = nullptr;
-	m_swapChain = nullptr;
 	m_renderTargetViewHeap = nullptr;
 	m_backBufferRenderTarget[0] = nullptr;
 	m_backBufferRenderTarget[1] = nullptr;
@@ -263,7 +264,7 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 	// Initialize the render target view heap description for the two back buffers.
 	ZeroMemory(&renderTargetViewHeapDesc, sizeof(renderTargetViewHeapDesc));
 
-	// Set the number of descriptors to two for our two back buffers.  Also set the heap tyupe to render target views.
+	// Set the number of descriptors to two for our two back buffers.  Also set the heap type to render target views.
 	renderTargetViewHeapDesc.NumDescriptors =	2;
 	renderTargetViewHeapDesc.Type =				D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	renderTargetViewHeapDesc.Flags =			D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -438,7 +439,7 @@ void D3DClass::Shutdown()
 }
 
 
-bool D3DClass::Render()
+bool D3DClass::Render(float red, float green, float blue, float alpha)
 {
 	HRESULT result;
 	D3D12_RESOURCE_BARRIER barrier;
@@ -485,10 +486,10 @@ bool D3DClass::Render()
 	m_commandList->OMSetRenderTargets(1, &renderTargetViewHandle, FALSE, nullptr);
 
 	// Then set the color to clear the window to.
-	color[0] = 0.5;
-	color[1] = 0.5;
-	color[2] = 0.5;
-	color[3] = 1.0;
+	color[0] = red;
+	color[1] = green;
+	color[2] = blue;
+	color[3] = alpha;
 	m_commandList->ClearRenderTargetView(renderTargetViewHandle, color, 0, nullptr);
 
 	// Indicate that the back buffer will now be used to present.

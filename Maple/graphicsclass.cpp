@@ -80,7 +80,7 @@ bool GraphicsClass::Render()
 
 
 	// Use the Direct3D object to render the scene.
-	result = m_Direct3D->Render();
+	result = m_Direct3D->Render(0.5f, 0.5f, 0.5f, 1.0f);
 	if (!result)
 	{
 		return false;

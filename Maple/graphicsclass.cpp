@@ -6,6 +6,7 @@
 
 GraphicsClass::GraphicsClass()
 {
+	m_Camera = nullptr;
 	m_Direct3D = nullptr;
 }
 
@@ -40,12 +41,30 @@ bool GraphicsClass::Initialize(int screenHeight, int screenWidth, HWND hwnd)
 		return false;
 	}
 
+	// Create the camera object.
+	m_Camera = new CameraClass;
+	if (!m_Camera)
+	{
+		return false;
+	}
+
+	// Set the initial parameters of the camera.
+	m_Camera->SetPosition(0.0f, 0.0f, -20.0f);
+	m_Camera->SetLookDirection(0.0f, 0.0f, 1.0f);
+
 	return true;
 }
 
 
 void GraphicsClass::Shutdown()
 {
+	// Release the camera object.
+	if (m_Camera)
+	{
+		delete m_Camera;
+		m_Camera = nullptr;
+	}
+
 	// Release the Direct3D object.
 	if (m_Direct3D)
 	{
@@ -78,6 +97,9 @@ bool GraphicsClass::Render()
 {
 	bool result;
 
+
+	// Generate the view matrix based on the camera's position.
+	m_Camera->Render();
 
 	// Use the Direct3D object to render the scene.
 	result = m_Direct3D->Render(0.5f, 0.5f, 0.5f, 1.0f);

@@ -7,6 +7,7 @@
 ///////////////////////
 // MY CLASS INCLUDES //
 ///////////////////////
+#include "cameraclass.h"
 #include "d3dclass.h"
 
 
@@ -37,5 +38,6 @@ private:
 	bool Render();
 
 private:
-	D3DClass*	m_Direct3D;
+	CameraClass*	m_Camera;
+	D3DClass*		m_Direct3D;
 };

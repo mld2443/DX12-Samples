@@ -41,7 +41,7 @@ public:
 
 private:
 	bool Frame();
-	void InitializeWindows(int&, int&);
+	bool InitializeWindows(int&, int&);
 	void ShutdownWindows();
 
 private:
@@ -63,4 +63,4 @@ static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 /////////////
 // GLOBALS //
 /////////////
-static SystemClass* ApplicationHandle = 0;
+static SystemClass* g_ApplicationHandle = 0;

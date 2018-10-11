@@ -11,13 +11,17 @@ D3DClass::D3DClass()
 	m_device = nullptr;
 	m_commandQueue = nullptr;
 	m_renderTargetViewHeap = nullptr;
-	m_backBufferRenderTarget[0] = nullptr;
-	m_backBufferRenderTarget[1] = nullptr;
-	m_commandAllocator = nullptr;
-	m_commandList = nullptr;
-	m_pipelineState = nullptr;
-	m_fence = nullptr;
-	m_fenceEvent = nullptr;
+
+	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	{
+		m_backBufferRenderTarget[i] = nullptr;
+	}
+
+	//m_commandAllocator = nullptr;
+	//m_commandList = nullptr;
+	//m_pipelineState = nullptr;
+	//m_fence = nullptr;
+	//m_fenceEvent = nullptr;
 }
 
 
@@ -188,7 +192,7 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 	ZeroMemory(&swapChainDesc, sizeof(swapChainDesc));
 
 	// Set the swap chain to use double buffering.
-	swapChainDesc.BufferCount =			2;
+	swapChainDesc.BufferCount =			FRAME_BUFFER_COUNT;
 
 	// Set the height and width of the back buffers in the swap chain.
 	swapChainDesc.BufferDesc.Height =	screenHeight;
@@ -276,34 +280,27 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 		return false;
 	}
 
-	// Get a handle to the starting memory location in the render target view heap to identify where the render target views will be located for the two back buffers.
+	// Get a handle to the starting memory location in the render target view heap to identify where the render target views will be located for the back buffers.
 	renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 
 	// Get the size of the memory location for the render target view descriptors.
 	renderTargetViewDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	// Get a pointer to the first back buffer from the swap chain.
-	result = m_swapChain->GetBuffer(0, __uuidof(ID3D12Resource), (void**)&m_backBufferRenderTarget[0]);
-	if (FAILED(result))
+	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		return false;
+		// Get a pointer to the current back buffer from the swap chain.
+		result = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_backBufferRenderTarget[i]));
+		if (FAILED(result))
+		{
+			return false;
+		}
+
+		// Create a render target view for the first back buffer.
+		m_device->CreateRenderTargetView(m_backBufferRenderTarget[i], nullptr, renderTargetViewHandle);
+
+		// Increment the view handle to the next descriptor location in the render target view heap.
+		renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
 	}
-
-	// Create a render target view for the first back buffer.
-	m_device->CreateRenderTargetView(m_backBufferRenderTarget[0], nullptr, renderTargetViewHandle);
-
-	// Increment the view handle to the next descriptor location in the render target view heap.
-	renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
-
-	// Get a pointer to the second back buffer from the swap chain.
-	result = m_swapChain->GetBuffer(1, __uuidof(ID3D12Resource), (void**)&m_backBufferRenderTarget[1]);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create a render target view for the second back buffer.
-	m_device->CreateRenderTargetView(m_backBufferRenderTarget[1], nullptr, renderTargetViewHandle);
 
 	// Finally get the initial index to which buffer is the current back buffer.
 	m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
@@ -345,6 +342,8 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 
 	// Initialize the starting fence value. 
 	m_fenceValue = 1;
+
+	//TODO: Create a depth buffer somehow.
 
 	return true;
 }
@@ -396,15 +395,13 @@ void D3DClass::Shutdown()
 	}
 
 	// Release the back buffer render target views.
-	if (m_backBufferRenderTarget[0])
+	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		m_backBufferRenderTarget[0]->Release();
-		m_backBufferRenderTarget[0] = nullptr;
-	}
-	if (m_backBufferRenderTarget[1])
-	{
-		m_backBufferRenderTarget[1]->Release();
-		m_backBufferRenderTarget[1] = nullptr;
+		if (m_backBufferRenderTarget[i])
+		{
+			m_backBufferRenderTarget[i]->Release();
+			m_backBufferRenderTarget[i] = nullptr;
+		}
 	}
 
 	// Release the render target view heap.
@@ -477,12 +474,11 @@ bool D3DClass::Render(float red, float green, float blue, float alpha)
 	// Get the render target view handle for the current back buffer.
 	renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 	renderTargetViewDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	if (m_bufferIndex == 1)
-	{
-		renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
-	}
+	renderTargetViewHandle.ptr += (renderTargetViewDescriptorSize * m_bufferIndex);
 
 	// Set the back buffer as the render target.
+	//TODO: Use the depth here, probably.
+
 	m_commandList->OMSetRenderTargets(1, &renderTargetViewHandle, FALSE, nullptr);
 
 	// Then set the color to clear the window to.
@@ -547,7 +543,8 @@ bool D3DClass::Render(float red, float green, float blue, float alpha)
 	}
 
 	// Alternate the back buffer index back and forth between 0 and 1 each frame.
-	m_bufferIndex == 0 ? m_bufferIndex = 1 : m_bufferIndex = 0;
+	m_bufferIndex++;
+	m_bufferIndex %= FRAME_BUFFER_COUNT;
 
 	return true;
 }

@@ -16,12 +16,6 @@ D3DClass::D3DClass()
 	{
 		m_backBufferRenderTarget[i] = nullptr;
 	}
-
-	//m_commandAllocator = nullptr;
-	//m_commandList = nullptr;
-	//m_pipelineState = nullptr;
-	//m_fence = nullptr;
-	//m_fenceEvent = nullptr;
 }
 
 
@@ -305,44 +299,6 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 	// Finally get the initial index to which buffer is the current back buffer.
 	m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	// Create a command allocator.
-	result = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), (void**)&m_commandAllocator);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create a basic command list.
-	result = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, __uuidof(ID3D12GraphicsCommandList), (void**)&m_commandList);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Initially we need to close the command list during initialization as it is created in a recording state.
-	result = m_commandList->Close();
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create a fence for GPU synchronization.
-	result = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof(ID3D12Fence), (void**)&m_fence);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create an event object for the fence.
-	m_fenceEvent = CreateEventEx(NULL, FALSE, FALSE, EVENT_ALL_ACCESS);
-	if (m_fenceEvent == NULL)
-	{
-		return false;
-	}
-
-	// Initialize the starting fence value. 
-	m_fenceValue = 1;
-
 	//TODO: Create a depth buffer somehow.
 
 	return true;
@@ -351,47 +307,10 @@ bool D3DClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bool vsy
 
 void D3DClass::Shutdown()
 {
-	int error;
-
-
 	// Before shutting down set to windowed mode or when you release the swap chain it will throw an exception.
 	if (m_swapChain)
 	{
 		m_swapChain->SetFullscreenState(false, nullptr);
-	}
-
-	// Close the object handle to the fence event.
-	error = CloseHandle(m_fenceEvent);
-	if (error == 0)
-	{
-	}
-
-	// Release the fence.
-	if (m_fence)
-	{
-		m_fence->Release();
-		m_fence = nullptr;
-	}
-
-	// Release the empty pipe line state.
-	if (m_pipelineState)
-	{
-		m_pipelineState->Release();
-		m_pipelineState = nullptr;
-	}
-
-	// Release the command list.
-	if (m_commandList)
-	{
-		m_commandList->Release();
-		m_commandList = nullptr;
-	}
-
-	// Release the command allocator.
-	if (m_commandAllocator)
-	{
-		m_commandAllocator->Release();
-		m_commandAllocator = nullptr;
 	}
 
 	// Release the back buffer render target views.
@@ -436,30 +355,15 @@ void D3DClass::Shutdown()
 }
 
 
-bool D3DClass::Render(float red, float green, float blue, float alpha)
+bool D3DClass::Render(ID3D12CommandList** commandLists, UINT numCommandLists)
 {
 	HRESULT result;
 	D3D12_RESOURCE_BARRIER barrier;
 	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetViewHandle;
 	unsigned int renderTargetViewDescriptorSize;
 	float color[4];
-	ID3D12CommandList* ppCommandLists[1];
 	unsigned long long fenceToWaitFor;
 
-
-	// Reset (re-use) the memory associated command allocator.
-	result = m_commandAllocator->Reset();
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Reset the command list, use empty pipeline state for now since there are no shaders and we are just clearing the screen.
-	result = m_commandList->Reset(m_commandAllocator, m_pipelineState);
-	if (FAILED(result))
-	{
-		return false;
-	}
 
 	// Record commands in the command list now.
 	// Start by setting the resource barrier.
@@ -476,9 +380,9 @@ bool D3DClass::Render(float red, float green, float blue, float alpha)
 	renderTargetViewDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	renderTargetViewHandle.ptr += (renderTargetViewDescriptorSize * m_bufferIndex);
 
-	// Set the back buffer as the render target.
 	//TODO: Use the depth here, probably.
 
+	// Set the back buffer as the render target.
 	m_commandList->OMSetRenderTargets(1, &renderTargetViewHandle, FALSE, nullptr);
 
 	// Then set the color to clear the window to.
@@ -500,11 +404,8 @@ bool D3DClass::Render(float red, float green, float blue, float alpha)
 		return false;
 	}
 
-	// Load the command list array (only one command list for now).
-	ppCommandLists[0] = m_commandList;
-
 	// Execute the list of commands.
-	m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+	m_commandQueue->ExecuteCommandLists(numCommandLists, commandLists);
 
 	// Finally present the back buffer to the screen since rendering is complete.
 	if (m_vsync_enabled)
@@ -547,4 +448,10 @@ bool D3DClass::Render(float red, float green, float blue, float alpha)
 	m_bufferIndex %= FRAME_BUFFER_COUNT;
 
 	return true;
+}
+
+
+unsigned int D3DClass::GetBufferIndex()
+{
+	return m_bufferIndex;
 }

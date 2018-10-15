@@ -64,7 +64,7 @@ void PipelineClass::Shutdown()
 }
 
 
-bool PipelineClass::Render(XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix)
+bool PipelineClass::BeginPipeline(XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix)
 {
 	bool result;
 
@@ -212,7 +212,7 @@ bool PipelineClass::InitializePipeline(ID3D12Device* device)
 	polygonLayout[1].InstanceDataStepRate =	0;
 
 	// Get a count of the elements in the layout.
-	numElements = sizeof(polygonLayout) / sizeof(D3D12_INPUT_ELEMENT_DESC);
+	numElements = sizeof(polygonLayout) / sizeof(polygonLayout[0]);
 
 	// Clear the pipeline state description before setting the parameters.
 	ZeroMemory(&pipelineStateDesc, sizeof(pipelineStateDesc));
@@ -362,150 +362,6 @@ void PipelineClass::ShutdownCommandList()
 
 	return;
 }
-
-
-//template<typename T>
-//Microsoft::WRL::ComPtr<ID3D12Resource> createDefaultBuffer(ID3D12Device* device, const std::vector<T>& data, D3D12_RESOURCE_STATES finalState, std::wstring name = L"")
-//{
-//	UINT elementSize{ static_cast<UINT>(sizeof(T)) };
-//	UINT bufferSize{ static_cast<UINT>(data.size() * elementSize) };
-//
-//	D3D12_HEAP_PROPERTIES heapProps;
-//	ZeroMemory(&heapProps, sizeof(heapProps));
-//	heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-//	heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-//	heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-//	heapProps.CreationNodeMask = 1;
-//	heapProps.VisibleNodeMask = 1;
-//
-//	D3D12_RESOURCE_DESC resourceDesc;
-//	ZeroMemory(&resourceDesc, sizeof(resourceDesc));
-//	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-//	resourceDesc.Alignment = 0;
-//	resourceDesc.Width = bufferSize;
-//	resourceDesc.Height = 1;
-//	resourceDesc.DepthOrArraySize = 1;
-//	resourceDesc.MipLevels = 1;
-//	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-//	resourceDesc.SampleDesc.Count = 1;
-//	resourceDesc.SampleDesc.Quality = 0;
-//	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-//	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-//
-//	Microsoft::WRL::ComPtr<ID3D12Resource> defaultBuffer;
-//	HRESULT hr{ device->CreateCommittedResource(
-//		&heapProps,
-//		D3D12_HEAP_FLAG_NONE,
-//		&resourceDesc,
-//		D3D12_RESOURCE_STATE_COPY_DEST,
-//		nullptr,
-//		IID_PPV_ARGS(defaultBuffer.ReleaseAndGetAddressOf())) };
-//
-//	if (FAILED(hr))
-//	{
-//		throw(runtime_error{ "Error creating a default buffer." });
-//	}
-//
-//	defaultBuffer->SetName(name.c_str());
-//
-//	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
-//
-//	Microsoft::WRL::ComPtr<ID3D12Resource> uploadBuffer;
-//	hr = device->CreateCommittedResource(
-//		&heapProps,
-//		D3D12_HEAP_FLAG_NONE,
-//		&resourceDesc,
-//		D3D12_RESOURCE_STATE_GENERIC_READ,
-//		nullptr,
-//		IID_PPV_ARGS(uploadBuffer.ReleaseAndGetAddressOf()));
-//
-//	if (FAILED(hr))
-//	{
-//		throw(runtime_error{ "Error creating an upload buffer." });
-//	}
-//
-//	ComPtr<ID3D12CommandAllocator> commandAllocator;
-//	if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(commandAllocator.ReleaseAndGetAddressOf()))))
-//	{
-//		throw(runtime_error{ "Error creating a command allocator." });
-//	}
-//
-//	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;
-//	if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator.Get(), nullptr, IID_PPV_ARGS(commandList.ReleaseAndGetAddressOf()))))
-//	{
-//		throw(runtime_error{ "Error creating a command list." });
-//	}
-//
-//	D3D12_COMMAND_QUEUE_DESC queueDesc;
-//	ZeroMemory(&queueDesc, sizeof(queueDesc));
-//	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-//	queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-//	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-//	queueDesc.NodeMask = 0;
-//
-//	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;
-//	if (FAILED(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(commandQueue.ReleaseAndGetAddressOf()))))
-//	{
-//		throw(runtime_error{ "Error creating a command queue." });
-//	}
-//
-//	void* pData;
-//	if (FAILED(uploadBuffer->Map(0, NULL, &pData)))
-//	{
-//		throw(runtime_error{ "Failed map intermediate resource." });
-//	}
-//
-//	memcpy(pData, data.data(), bufferSize);
-//	uploadBuffer->Unmap(0, NULL);
-//
-//	commandList->CopyBufferRegion(defaultBuffer.Get(), 0, uploadBuffer.Get(), 0, bufferSize);
-//
-//	D3D12_RESOURCE_BARRIER barrierDesc;
-//	ZeroMemory(&barrierDesc, sizeof(barrierDesc));
-//	barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-//	barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-//	barrierDesc.Transition.pResource = defaultBuffer.Get();
-//	barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-//	barrierDesc.Transition.StateAfter = finalState;
-//	barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-//
-//	commandList->ResourceBarrier(1, &barrierDesc);
-//
-//	commandList->Close();
-//	std::vector<ID3D12CommandList*> ppCommandLists{ commandList.Get() };
-//	commandQueue->ExecuteCommandLists(static_cast<UINT>(ppCommandLists.size()), ppCommandLists.data());
-//
-//	UINT64 initialValue{ 0 };
-//	Microsoft::WRL::ComPtr<ID3D12Fence> fence;
-//	if (FAILED(device->CreateFence(initialValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.ReleaseAndGetAddressOf()))))
-//	{
-//		throw(runtime_error{ "Error creating a fence." });
-//	}
-//
-//	HANDLE fenceEventHandle{ CreateEvent(nullptr, FALSE, FALSE, nullptr) };
-//	if (fenceEventHandle == NULL)
-//	{
-//		throw(runtime_error{ "Error creating a fence event." });
-//	}
-//
-//	if (FAILED(commandQueue->Signal(fence.Get(), 1)))
-//	{
-//		throw(runtime_error{ "Error siganalling buffer uploaded." });
-//	}
-//
-//	if (FAILED(fence->SetEventOnCompletion(1, fenceEventHandle)))
-//	{
-//		throw(runtime_error{ "Failed set event on completion." });
-//	}
-//
-//	DWORD wait{ WaitForSingleObject(fenceEventHandle, 10000) };
-//	if (wait != WAIT_OBJECT_0)
-//	{
-//		throw(runtime_error{ "Failed WaitForSingleObject()." });
-//	}
-//
-//	return defaultBuffer;
-//}
 
 
 bool PipelineClass::AllocateBuffers(ID3D12Device* device, UINT64 vertexBufferSize, UINT64 indexBufferSize, UINT64 matrixBufferSize)
@@ -684,59 +540,68 @@ bool PipelineClass::SetMatrixBuffer(XMMATRIX worldMatrix, XMMATRIX viewMatrix, X
 	return true;
 }
 
-//bool PipelineClass::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRIX worldMatrix, XMMATRIX viewMatrix,
-//	XMMATRIX projectionMatrix)
-//{
-//	HRESULT result;
-//	D3D11_MAPPED_SUBRESOURCE mappedResource;
-//	MatrixBufferType* dataPtr;
-//	unsigned int bufferNumber;
-//
-//
-//	// Transpose the matrices to prepare them for the shader.
-//	worldMatrix = XMMatrixTranspose(worldMatrix);
-//	viewMatrix = XMMatrixTranspose(viewMatrix);
-//	projectionMatrix = XMMatrixTranspose(projectionMatrix);
-//
-//	// Lock the constant buffer so it can be written to.
-//	result = deviceContext->Map(m_matrixBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-//	if (FAILED(result))
-//	{
-//		return false;
-//	}
-//
-//	// Get a pointer to the data in the constant buffer.
-//	dataPtr = (MatrixBufferType*)mappedResource.pData;
-//
-//	// Copy the matrices into the constant buffer.
-//	dataPtr->world = worldMatrix;
-//	dataPtr->view = viewMatrix;
-//	dataPtr->projection = projectionMatrix;
-//
-//	// Unlock the constant buffer.
-//	deviceContext->Unmap(m_matrixBuffer, 0);
-//
-//	// Set the position of the constant buffer in the vertex shader.
-//	bufferNumber = 0;
-//
-//	// Finally set the constant buffer in the vertex shader with the updated values.
-//	deviceContext->VSSetConstantBuffers(bufferNumber, 1, &m_matrixBuffer);
-//
-//	return true;
-//}
+
+bool PipelineClass::RenderPipeline(unsigned int frameIndex, ID3D12Resource* backBuffer,
+									D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE depthHandle)
+{
+	HRESULT result;
+	D3D12_RESOURCE_BARRIER barrier;
+	float color[4];
 
 
-//void PipelineClass::RenderShader(ID3D11DeviceContext* deviceContext, int indexCount)
-//{
-//	// Set the vertex input layout.
-//	deviceContext->IASetInputLayout(m_layout);
-//
-//	// Set the vertex and pixel shaders that will be used to render this triangle.
-//	deviceContext->VSSetShader(m_vertexShader, nullptr, 0);
-//	deviceContext->PSSetShader(m_pixelShader, nullptr, 0);
-//
-//	// Render the geometry.
-//	deviceContext->DrawIndexed(indexCount, 0, 0);
-//
-//	return;
-//}
+	// Reset (re-use) the memory associated command allocator.
+	result = m_commandAllocator[frameIndex]->Reset();
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Reset the command list, use empty pipeline state for now since there are no shaders and we are just clearing the screen.
+	result = m_commandList->Reset(m_commandAllocator[frameIndex], m_pipelineState);
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Record commands in the command list now.
+	// Start by setting the resource barrier.
+	barrier.Flags =						D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	barrier.Transition.pResource =		backBuffer;
+	barrier.Transition.StateBefore =	D3D12_RESOURCE_STATE_PRESENT;
+	barrier.Transition.StateAfter =		D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.Subresource =	D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Type =						D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	m_commandList->ResourceBarrier(1, &barrier);
+
+	// Set the back buffer as the render target and specify the depth buffer.
+	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &depthHandle);
+
+	// Then set the color to clear the window to.
+	color[0] = 0.0f;
+	color[1] = 0.0f;
+	color[2] = 0.0f;
+	color[3] = 1.0f;
+	m_commandList->ClearRenderTargetView(rtvHandle, color, 0, nullptr);
+
+	m_commandList->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+	// Set the vertex input layout.
+	//m_commandList->IASetInputLayout(m_layout);
+
+	// Render the geometry.
+	//deviceContext->DrawIndexed(indexCount, 0, 0);
+
+	// Indicate that the back buffer will now be used to present.
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	m_commandList->ResourceBarrier(1, &barrier);
+
+	// Close the list of commands.
+	result = m_commandList->Close();
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	return true;
+}

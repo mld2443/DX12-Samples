@@ -8,7 +8,7 @@
 // MY CLASS INCLUDES //
 ///////////////////////
 #include "cameraclass.h"
-#include "d3dclass.h"
+#include "pipelineclass.h"
 
 
 /////////////
@@ -39,5 +39,5 @@ private:
 
 private:
 	CameraClass*	m_Camera;
-	D3DClass*		m_Direct3D;
+	//D3DClass*		m_Direct3D;
 };

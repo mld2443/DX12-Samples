@@ -7,7 +7,7 @@
 GraphicsClass::GraphicsClass()
 {
 	m_Camera = nullptr;
-	m_Direct3D = nullptr;
+	PipelineClass::s_Direct3D = nullptr;
 }
 
 
@@ -27,14 +27,14 @@ bool GraphicsClass::Initialize(int screenHeight, int screenWidth, HWND hwnd)
 
 
 	// Create the Direct3D object.
-	m_Direct3D = new D3DClass;
-	if (!m_Direct3D)
+	PipelineClass::s_Direct3D = new D3DClass;
+	if (!PipelineClass::s_Direct3D)
 	{
 		return false;
 	}
 
 	// Initialize the Direct3D object.
-	result = m_Direct3D->Initialize(screenHeight, screenWidth, hwnd, VSYNC_ENABLED, FULL_SCREEN);
+	result = PipelineClass::s_Direct3D->Initialize(screenHeight, screenWidth, hwnd, VSYNC_ENABLED, FULL_SCREEN);
 	if (!result)
 	{
 		MessageBox(hwnd, L"Could not initialize Direct3D.", L"Error", MB_OK);
@@ -66,11 +66,11 @@ void GraphicsClass::Shutdown()
 	}
 
 	// Release the Direct3D object.
-	if (m_Direct3D)
+	if (PipelineClass::s_Direct3D)
 	{
-		m_Direct3D->Shutdown();
-		delete m_Direct3D;
-		m_Direct3D = nullptr;
+		PipelineClass::s_Direct3D->Shutdown();
+		delete PipelineClass::s_Direct3D;
+		PipelineClass::s_Direct3D = nullptr;
 	}
 
 	return;
@@ -102,11 +102,11 @@ bool GraphicsClass::Render()
 	m_Camera->Render();
 
 	// Use the Direct3D object to render the scene.
-	result = m_Direct3D->Render(0.5f, 0.5f, 0.5f, 1.0f);
-	if (!result)
-	{
-		return false;
-	}
+	//result = m_Direct3D->Render(0.5f, 0.5f, 0.5f, 1.0f);
+	//if (!result)
+	//{
+	//	return false;
+	//}
 
 	return true;
 }

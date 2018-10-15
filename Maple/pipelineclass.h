@@ -14,6 +14,7 @@
 ///////////////////////
 // MY CLASS INCLUDES //
 ///////////////////////
+#include "d3dclass.h"
 #include "color.ps.h"
 #include "color.vs.h"
 
@@ -45,7 +46,8 @@ public:
 
 	bool Initialize(ID3D12Device*, unsigned int);
 	void Shutdown();
-	bool Render(XMMATRIX, XMMATRIX, XMMATRIX);
+
+	bool BeginPipeline(XMMATRIX, XMMATRIX, XMMATRIX);
 
 private:
 	bool InitializePipeline(ID3D12Device*);
@@ -57,9 +59,14 @@ private:
 	//bool SetVertexBuffer(VertexType*);
 	bool SetMatrixBuffer(XMMATRIX, XMMATRIX, XMMATRIX);
 
+	bool RenderPipeline(unsigned int, ID3D12Resource*);
+
+public:
+	static D3DClass* s_Direct3D;
+
 private:
-	ID3D12RootSignature*		m_rootSignature;
-	ID3D12PipelineState*		m_pipelineState;
+	ID3D12RootSignature*	m_rootSignature;
+	ID3D12PipelineState*	m_pipelineState;
 
 	ID3D12CommandAllocator*		m_commandAllocator[FRAME_BUFFER_COUNT];
 	ID3D12GraphicsCommandList*	m_commandList;

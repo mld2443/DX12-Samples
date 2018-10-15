@@ -87,6 +87,13 @@ void ResourcesClass::Shutdown()
 
 	ShutdownDirect3D();
 
+	// Release the swap chain.
+	if (m_swapChain)
+	{
+		m_swapChain->Release();
+		m_swapChain = nullptr;
+	}
+
 	return;
 }
 
@@ -730,13 +737,6 @@ void ResourcesClass::ShutdownDirect3D()
 		m_renderTargetViewHeap = nullptr;
 	}
 
-	// Release the swap chain.
-	if (m_swapChain)
-	{
-		m_swapChain->Release();
-		m_swapChain = nullptr;
-	}
-
 	// Release the command queue.
 	if (m_commandQueue)
 	{
@@ -744,7 +744,14 @@ void ResourcesClass::ShutdownDirect3D()
 		m_commandQueue = nullptr;
 	}
 
-	// Release the device.
+	// Release the d3d11 wrapper device.
+	if (m_d3d11On12Device)
+	{
+		m_d3d11On12Device->Release();
+		m_d3d11On12Device = nullptr;
+	}
+
+	// Release the d3d12 device.
 	if (m_d3d12Device)
 	{
 		m_d3d12Device->Release();

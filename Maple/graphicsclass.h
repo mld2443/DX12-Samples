@@ -8,6 +8,7 @@
 // MY CLASS INCLUDES //
 ///////////////////////
 #include "resourcesclass.h"
+#include "textclass.h"
 
 
 /////////////
@@ -37,5 +38,6 @@ private:
 	bool Render();
 
 private:
-	ResourcesClass*	m_Direct3D;
+	ResourcesClass*	m_Resources;
+	TextClass*		m_Text;
 };

@@ -46,6 +46,10 @@ public:
 
 	bool Render();
 
+	ID2D1Device4* GetDirect2DDevice();
+	ID2D1DeviceContext4* GetDirect2DDeviceContext();
+	IDWriteFactory* GetDirectWriteFactory();
+
 private:
 	bool InitializeDirect3D(int, int, HWND, bool, bool);
 	bool InitializeDirect2D();

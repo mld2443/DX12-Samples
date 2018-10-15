@@ -212,6 +212,24 @@ bool ResourcesClass::Render()
 }
 
 
+ID2D1Device4* ResourcesClass::GetDirect2DDevice()
+{
+	return m_d2dDevice;
+}
+
+
+ID2D1DeviceContext4* ResourcesClass::GetDirect2DDeviceContext()
+{
+	return m_d2dDeviceContext;
+}
+
+
+IDWriteFactory* ResourcesClass::GetDirectWriteFactory()
+{
+	return m_dWriteFactory;
+}
+
+
 bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
 {
 	HRESULT result;

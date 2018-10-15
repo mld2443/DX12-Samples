@@ -4,6 +4,12 @@
 #pragma once
 
 
+//////////////
+// INCLUDES //
+//////////////
+#include <atlstr.h>
+
+
 ///////////////////////
 // MY CLASS INCLUDES //
 ///////////////////////
@@ -32,7 +38,7 @@ public:
 
 	bool Initialize(int, int, HWND);
 	void Shutdown();
-	bool Frame();
+	bool Frame(float, int, float);
 
 private:
 	bool Render();

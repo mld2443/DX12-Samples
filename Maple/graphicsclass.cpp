@@ -88,13 +88,17 @@ void GraphicsClass::Shutdown()
 }
 
 
-bool GraphicsClass::Frame()
+bool GraphicsClass::Frame(float fps, int cpu, float frameTime)
 {
 	bool result;
+	CString stats;
 
+
+	// Build the statistics string.
+	stats.Format(L"FPS: %.1f\nCPU: %d%%", fps, cpu);
 
 	// Set the stats text string for our text object.
-	m_Text->SetTextString(L"MORE EFFORT THAN IT'S WORTH.");
+	m_Text->SetTextString(stats.GetString());
 
 	// Render the graphics scene.
 	result = Render();
@@ -113,7 +117,7 @@ bool GraphicsClass::Render()
 
 
 	// Use the Direct3D 12 object to render the scene.
-	result = m_Resources->BeginScene(0.0f, 0.2f, 0.4f, 1.0f);
+	result = m_Resources->BeginScene(0.2f, 0.2f, 0.2f, 1.0f);
 	if (!result)
 	{
 		return false;

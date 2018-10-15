@@ -96,4 +96,4 @@ int CpuClass::GetCpuPercentage()
 	}
 
 	return usage;
-}s
+}

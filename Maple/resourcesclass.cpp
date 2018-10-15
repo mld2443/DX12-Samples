@@ -8,22 +8,28 @@ ResourcesClass::ResourcesClass()
 {
 	m_swapChain = nullptr;
 
-	m_direct3DDevice = nullptr;
+	m_d3d12Device = nullptr;
+	m_d3d11On12Device = nullptr;
 	m_commandQueue = nullptr;
 	m_renderTargetViewHeap = nullptr;
-	m_backBufferRenderTarget[0] = nullptr;
-	m_backBufferRenderTarget[1] = nullptr;
+	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	{
+		m_backBufferRenderTarget[i] = nullptr;
+	}
 	m_commandAllocator = nullptr;
 	m_commandList = nullptr;
 	m_pipelineState = nullptr;
 	m_fence = nullptr;
 	m_fenceEvent = nullptr;
 
-	m_direct2DDevice = nullptr;
-	m_direct2DDeviceContext = nullptr;
-	m_bitmap = nullptr;
+	m_d2dDevice = nullptr;
+	m_d2dDeviceContext = nullptr;
+	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	{
+		m_bitmap[i] = nullptr;
+	}
 
-	m_directWriteFactory = nullptr;
+	m_dWriteFactory = nullptr;
 }
 
 
@@ -50,18 +56,18 @@ bool ResourcesClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bo
 	}
 
 	// Initialize all direct2D resources.
-	//result = InitializeDirect2D();
-	//if (!result)
-	//{
-	//	return false;
-	//}
+	result = InitializeDirect2D();
+	if (!result)
+	{
+		return false;
+	}
 
 	// Initialize all directWrite resources.
-	//result = InitializeDirectWrite();
-	//if (!result)
-	//{
-	//	return false;
-	//}
+	result = InitializeDirectWrite();
+	if (!result)
+	{
+		return false;
+	}
 
 	return true;
 }
@@ -122,7 +128,7 @@ bool ResourcesClass::Render()
 
 	// Get the render target view handle for the current back buffer.
 	renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
-	renderTargetViewDescriptorSize = m_direct3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	renderTargetViewDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	if (m_bufferIndex == 1)
 	{
 		renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
@@ -215,6 +221,7 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	int error;
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	IDXGISwapChain* swapChain;
+	ID3D11Device *d3d11Device;
 	D3D12_DESCRIPTOR_HEAP_DESC renderTargetViewHeapDesc;
 	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetViewHandle;
 
@@ -228,7 +235,7 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 
 #if defined(_DEBUG)
 	// Create the Direct3D debug controller.
-	result = D3D12GetDebugInterface(__uuidof(ID3D12Debug), (void**)&debugController);
+	result = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
 	if (FAILED(result))
 	{
 		MessageBox(hwnd, L"Could not enable Direct3D debugging.", L"Debugger Failure", MB_OK);
@@ -244,7 +251,7 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 #endif
 
 	// Create the Direct3D 12 device.
-	result = D3D12CreateDevice(nullptr, featureLevel, __uuidof(ID3D12Device), (void**)&m_direct3DDevice);
+	result = D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&m_d3d12Device));
 	if (FAILED(result))
 	{
 		MessageBox(hwnd, L"Could not create a DirectX 12.1 device.  The default video card does not support DirectX 12.1.", L"DirectX Device Failure", MB_OK);
@@ -261,14 +268,14 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	commandQueueDesc.NodeMask =	0;
 
 	// Create the command queue.
-	result = m_direct3DDevice->CreateCommandQueue(&commandQueueDesc, __uuidof(ID3D12CommandQueue), (void**)&m_commandQueue);
+	result = m_d3d12Device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue));
 	if (FAILED(result))
 	{
 		return false;
 	}
 
 	// Create a DirectX graphics interface factory.
-	result = CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&factory);
+	result = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
 	if (FAILED(result))
 	{
 		return false;
@@ -416,7 +423,7 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 
 	// Next upgrade the IDXGISwapChain to a IDXGISwapChain3 interface and store it in a private member variable named m_swapChain.
 	// This will allow us to use the newer functionality such as getting the current back buffer index.
-	result = swapChain->QueryInterface(__uuidof(IDXGISwapChain3), (void**)&m_swapChain);
+	result = swapChain->QueryInterface(IID_PPV_ARGS(&m_swapChain));
 	if (FAILED(result))
 	{
 		return false;
@@ -429,16 +436,34 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	factory->Release();
 	factory = nullptr;
 
+	// Create a D3D 11 device from our D3D 12 device and its command queue.
+	result = D3D11On12CreateDevice(m_d3d12Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
+								(IUnknown**)&m_commandQueue, 1, 0, &d3d11Device, nullptr, nullptr);
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Create a D3D11On12 device wrapper of our D3D 11 Device.
+	result = d3d11Device->QueryInterface(IID_PPV_ARGS(&m_d3d11On12Device));
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Release the D3D11 device.
+	d3d11Device = nullptr;
+
 	// Initialize the render target view heap description for the two back buffers.
 	ZeroMemory(&renderTargetViewHeapDesc, sizeof(renderTargetViewHeapDesc));
 
-	// Set the number of descriptors to two for our two back buffers.  Also set the heap tyupe to render target views.
-	renderTargetViewHeapDesc.NumDescriptors =	2;
+	// Set the number of descriptors to two for our back buffers.  Also set the heap type to render target views.
+	renderTargetViewHeapDesc.NumDescriptors =	FRAME_BUFFER_COUNT;
 	renderTargetViewHeapDesc.Type =				D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	renderTargetViewHeapDesc.Flags =			D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 	// Create the render target view heap for the back buffers.
-	result = m_direct3DDevice->CreateDescriptorHeap(&renderTargetViewHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_renderTargetViewHeap);
+	result = m_d3d12Device->CreateDescriptorHeap(&renderTargetViewHeapDesc, IID_PPV_ARGS(&m_renderTargetViewHeap));
 	if (FAILED(result))
 	{
 		return false;
@@ -448,43 +473,36 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 
 	// Get the size of the memory location for the render target view descriptors.
-	renderTargetViewDescriptorSize = m_direct3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	renderTargetViewDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	// Get a pointer to the first back buffer from the swap chain.
-	result = m_swapChain->GetBuffer(0, __uuidof(ID3D12Resource), (void**)&m_backBufferRenderTarget[0]);
-	if (FAILED(result))
+	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		return false;
+		// Get a pointer to the current back buffer from the swap chain.
+		result = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_backBufferRenderTarget[i]));
+		if (FAILED(result))
+		{
+			return false;
+		}
+
+		// Create a render target view for the first back buffer.
+		m_d3d12Device->CreateRenderTargetView(m_backBufferRenderTarget[i], nullptr, renderTargetViewHandle);
+
+		// Increment the view handle to the next descriptor location in the render target view heap.
+		renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
 	}
-
-	// Create a render target view for the first back buffer.
-	m_direct3DDevice->CreateRenderTargetView(m_backBufferRenderTarget[0], nullptr, renderTargetViewHandle);
-
-	// Increment the view handle to the next descriptor location in the render target view heap.
-	renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
-
-	// Get a pointer to the second back buffer from the swap chain.
-	result = m_swapChain->GetBuffer(1, __uuidof(ID3D12Resource), (void**)&m_backBufferRenderTarget[1]);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create a render target view for the second back buffer.
-	m_direct3DDevice->CreateRenderTargetView(m_backBufferRenderTarget[1], nullptr, renderTargetViewHandle);
 
 	// Finally get the initial index to which buffer is the current back buffer.
 	m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 	// Create a command allocator.
-	result = m_direct3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), (void**)&m_commandAllocator);
+	result = m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator));
 	if (FAILED(result))
 	{
 		return false;
 	}
 
 	// Create a basic command list.
-	result = m_direct3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, __uuidof(ID3D12GraphicsCommandList), (void**)&m_commandList);
+	result = m_d3d12Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator, nullptr, IID_PPV_ARGS(&m_commandList));
 	if (FAILED(result))
 	{
 		return false;
@@ -498,7 +516,7 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	}
 
 	// Create a fence for GPU synchronization.
-	result = m_direct3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof(ID3D12Fence), (void**)&m_fence);
+	result = m_d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence));
 	if (FAILED(result))
 	{
 		return false;
@@ -521,17 +539,18 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 bool ResourcesClass::InitializeDirect2D()
 {
 	HRESULT result;
-	FLOAT dpiX, dpiY;
 	D2D1_FACTORY_OPTIONS options;
-	ID2D1Factory5* factory;
-	IDXGISurface* dxgiSurface;
+	ID2D1Factory5* d2dFactory;
 	IDXGIDevice* dxgiDevice;
+	IDXGISurface* dxgiSurface;
+	float dpiX, dpiY;
 	D2D1_BITMAP_PROPERTIES1 bitmapProperties;
-	D2D1_PIXEL_FORMAT pixelFormat;
+	D3D11_RESOURCE_FLAGS d3d11Flags;
+	ID3D11Resource* wrappedRenderTarget[FRAME_BUFFER_COUNT];
 
 
 	// Set the default options for the D2DFactory.
-	ZeroMemory(&options, sizeof(D2D1_FACTORY_OPTIONS));
+	ZeroMemory(&options, sizeof(options));
 
 #if defined(_DEBUG)
 	// If the project is in a debug build, enable Direct2D debugging via SDK Layers.
@@ -539,68 +558,101 @@ bool ResourcesClass::InitializeDirect2D()
 #endif
 
 	// Create D2DFactory to get our device.
-	result = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, options, &factory);
+	result = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, options, &d2dFactory);
 	if (FAILED(result))
 	{
 		return false;
 	}
 
 	// Retrieve a pointer to our device as a DXGI device.
-	result = m_direct3DDevice->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
+	result = m_d3d11On12Device->QueryInterface(IID_PPV_ARGS(&dxgiDevice));
 	if (FAILED(result))
 	{
 		return false;
 	}
 
 	// Store a reference to our device.
-	result = factory->CreateDevice(dxgiDevice, &m_direct2DDevice);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Release the DXGI device.
-	dxgiDevice->Release();
-	dxgiDevice = nullptr;
-
-	// Create a device context to draw with.
-	result = m_direct2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_direct2DDeviceContext);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Get the back buffer from the swap chain to use as a DXGI Surface.
-	result = m_swapChain->GetBuffer(0, __uuidof(IDXGISurface), (void**)&dxgiSurface);
+	result = d2dFactory->CreateDevice(dxgiDevice, &m_d2dDevice);
 	if (FAILED(result))
 	{
 		return false;
 	}
 
 	// Retrieve the device context DPI to match the text DPI with.
-	factory->GetDesktopDpi(&dpiX, &dpiY);
+	d2dFactory->GetDesktopDpi(&dpiX, &dpiY);
 
 	// Release the factory.
-	factory->Release();
-	factory = nullptr;
+	d2dFactory->Release();
+	d2dFactory = nullptr;
 
-	// Define Properties for our bitmap object.
-	pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_IGNORE);
-	bitmapProperties = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, pixelFormat, dpiX, dpiY);
+	// Release the DXGI device.
+	dxgiDevice->Release();
+	dxgiDevice = nullptr;
 
-	// Create a bitmap to draw text on using the DXGI Surface backbuffer.
-	result = m_direct2DDeviceContext->CreateBitmapFromDxgiSurface(dxgiSurface, &bitmapProperties, &m_bitmap);
+	// Create a device context to draw with.
+	result = m_d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_d2dDeviceContext);
 	if (FAILED(result))
 	{
 		return false;
 	}
 
-	// Release the DXGI surface device.
-	dxgiSurface->Release();
-	dxgiSurface = nullptr;
+	// Clear the memory of our pixel format.
+	ZeroMemory(&bitmapProperties, sizeof(bitmapProperties));
 
-	// Set our bitmap as the drawing target for our device context.
-	m_direct2DDeviceContext->SetTarget(m_bitmap);
+	// Set the properties of our bitmap.
+	bitmapProperties.bitmapOptions =			D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
+	bitmapProperties.pixelFormat.format =		DXGI_FORMAT_B8G8R8A8_UNORM;
+	bitmapProperties.pixelFormat.alphaMode =	D2D1_ALPHA_MODE_IGNORE;
+	bitmapProperties.dpiX =						dpiX;
+	bitmapProperties.dpiY =						dpiY;
+	bitmapProperties.colorContext =				NULL;
+
+	// Clear the memory of our pixel format.
+	ZeroMemory(&d3d11Flags, sizeof(d3d11Flags));
+
+	// Set the properties of our bitmap.
+	d3d11Flags.BindFlags = D3D11_BIND_RENDER_TARGET;
+
+	for (UINT i = 0; i < FRAME_BUFFER_COUNT; i++)
+	{
+		//ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
+		//m_d3d12Device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+
+		// Create a wrapped 11On12 resource of this back buffer. Since we are 
+		// rendering all D3D12 content first and then all D2D content, we specify 
+		// the In resource state as RENDER_TARGET - because D3D12 will have last 
+		// used it in this state - and the Out resource state as PRESENT. When 
+		// ReleaseWrappedResources() is called on the 11On12 device, the resource 
+		// will be transitioned to the PRESENT state.
+		result = m_d3d11On12Device->CreateWrappedResource(m_backBufferRenderTarget[i], &d3d11Flags, D3D12_RESOURCE_STATE_RENDER_TARGET,
+														D3D12_RESOURCE_STATE_PRESENT, IID_PPV_ARGS(&wrappedRenderTarget[i]));
+		if (FAILED(result))
+		{
+			return false;
+		}
+
+		// Create a render target for D2D to draw directly to this back buffer.
+		result = wrappedRenderTarget[i]->QueryInterface(IID_PPV_ARGS(&dxgiSurface));
+		if (FAILED(result))
+		{
+			return false;
+		}
+
+		//ThrowIfFailed(m_d2dDeviceContext->CreateBitmapFromDxgiSurface(surface.Get(), &bitmapProperties, &m_d2dRenderTargets[n]));
+		result = m_d2dDeviceContext->CreateBitmapFromDxgiSurface(dxgiSurface, &bitmapProperties, &m_bitmap[i]);
+		if (FAILED(result))
+		{
+			return false;
+		}
+
+		// Release the DXGI surface device.
+		dxgiSurface->Release();
+		dxgiSurface = nullptr;
+
+		//rtvHandle.Offset(1, m_rtvDescriptorSize);
+
+		//ThrowIfFailed(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
+	}
 
 	return true;
 }
@@ -612,7 +664,7 @@ bool ResourcesClass::InitializeDirectWrite()
 
 
 	// Create a DirectWrite Factory to create layouts and formats with.
-	result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory4), (IUnknown **)&m_directWriteFactory);
+	result = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory4), (IUnknown **)&m_dWriteFactory);
 	if (FAILED(result))
 	{
 		return false;
@@ -662,15 +714,13 @@ void ResourcesClass::ShutdownDirect3D()
 	}
 
 	// Release the back buffer render target views.
-	if (m_backBufferRenderTarget[0])
+	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		m_backBufferRenderTarget[0]->Release();
-		m_backBufferRenderTarget[0] = nullptr;
-	}
-	if (m_backBufferRenderTarget[1])
-	{
-		m_backBufferRenderTarget[1]->Release();
-		m_backBufferRenderTarget[1] = nullptr;
+		if (m_backBufferRenderTarget[i])
+		{
+			m_backBufferRenderTarget[i]->Release();
+			m_backBufferRenderTarget[i] = nullptr;
+		}
 	}
 
 	// Release the render target view heap.
@@ -695,10 +745,10 @@ void ResourcesClass::ShutdownDirect3D()
 	}
 
 	// Release the device.
-	if (m_direct3DDevice)
+	if (m_d3d12Device)
 	{
-		m_direct3DDevice->Release();
-		m_direct3DDevice = nullptr;
+		m_d3d12Device->Release();
+		m_d3d12Device = nullptr;
 	}
 
 	return;
@@ -707,22 +757,25 @@ void ResourcesClass::ShutdownDirect3D()
 
 void ResourcesClass::ShutdownDirect2D()
 {
-	if (m_bitmap)
+	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		m_bitmap->Release();
-		m_bitmap = nullptr;
+		if (m_bitmap)
+		{
+			m_bitmap[i]->Release();
+			m_bitmap[i] = nullptr;
+		}
 	}
 
-	if (m_direct2DDeviceContext)
+	if (m_d2dDeviceContext)
 	{
-		m_direct2DDeviceContext->Release();
-		m_direct2DDeviceContext = nullptr;
+		m_d2dDeviceContext->Release();
+		m_d2dDeviceContext = nullptr;
 	}
 
-	if (m_direct2DDevice)
+	if (m_d2dDevice)
 	{
-		m_direct2DDevice->Release();
-		m_direct2DDevice = nullptr;
+		m_d2dDevice->Release();
+		m_d2dDevice = nullptr;
 	}
 
 	return;
@@ -731,10 +784,10 @@ void ResourcesClass::ShutdownDirect2D()
 
 void ResourcesClass::ShutdownDirectWrite()
 {
-	if (m_directWriteFactory)
+	if (m_dWriteFactory)
 	{
-		m_directWriteFactory->Release();
-		m_directWriteFactory = nullptr;
+		m_dWriteFactory->Release();
+		m_dWriteFactory = nullptr;
 	}
 
 	return;

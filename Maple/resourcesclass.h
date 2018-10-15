@@ -7,6 +7,7 @@
 /////////////
 // LINKING //
 /////////////
+#pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d2d1.lib")
@@ -16,11 +17,18 @@
 //////////////
 // INCLUDES //
 //////////////
+#include <d3d11on12.h>
 #include <d3d12.h>
 #include <d2d1_3.h>
 #include <d2d1_1helper.h>
 #include <dwrite_3.h>
 #include <dxgi1_4.h>
+
+
+/////////////////
+// DEFINITIONS //
+/////////////////
+#define FRAME_BUFFER_COUNT 2
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,10 +62,11 @@ private:
 	IDXGISwapChain3*	m_swapChain;
 
 	// Direct3D
-	ID3D12Device*				m_direct3DDevice;
+	ID3D12Device*				m_d3d12Device;
+	ID3D11On12Device*			m_d3d11On12Device;
 	ID3D12CommandQueue*			m_commandQueue;
 	ID3D12DescriptorHeap*		m_renderTargetViewHeap;
-	ID3D12Resource*				m_backBufferRenderTarget[2];
+	ID3D12Resource*				m_backBufferRenderTarget[FRAME_BUFFER_COUNT];
 	unsigned int				m_bufferIndex;
 	ID3D12CommandAllocator*		m_commandAllocator;
 	ID3D12GraphicsCommandList*	m_commandList;
@@ -67,10 +76,10 @@ private:
 	unsigned long long			m_fenceValue;
 
 	// Direct2D
-	ID2D1Device4*			m_direct2DDevice;
-	ID2D1DeviceContext4*	m_direct2DDeviceContext;
-	ID2D1Bitmap1*			m_bitmap;
+	ID2D1Device4*			m_d2dDevice;
+	ID2D1DeviceContext4*	m_d2dDeviceContext;
+	ID2D1Bitmap1*			m_bitmap[FRAME_BUFFER_COUNT];
 
 	// DirectWrite
-	IDWriteFactory*	m_directWriteFactory;
+	IDWriteFactory*	m_dWriteFactory;
 };

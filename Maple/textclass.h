@@ -29,7 +29,7 @@ public:
 	void SetBrushColor(D2D1::ColorF&);
 	void SetTextString(const std::wstring&);
 
-	void Render(ID2D1DeviceContext*);
+	bool Render(ID2D1DeviceContext*);
 
 private:
 	ID2D1SolidColorBrush*	m_brush;

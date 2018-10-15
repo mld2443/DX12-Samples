@@ -68,7 +68,15 @@ bool GraphicsClass::Initialize(int screenHeight, int screenWidth, HWND hwnd)
 
 void GraphicsClass::Shutdown()
 {
-	// Release the Direct3D object.
+	// Release the Text object.
+	if (m_Text)
+	{
+		m_Text->Shutdown();
+		delete m_Text;
+		m_Text = nullptr;
+	}
+
+	// Release the Resources object.
 	if (m_Resources)
 	{
 		m_Resources->Shutdown();
@@ -84,6 +92,9 @@ bool GraphicsClass::Frame()
 {
 	bool result;
 
+
+	// Set the stats text string for our text object.
+	m_Text->SetTextString(L"MORE EFFORT THAN IT'S WORTH.");
 
 	// Render the graphics scene.
 	result = Render();
@@ -101,8 +112,21 @@ bool GraphicsClass::Render()
 	bool result;
 
 
-	// Use the Direct3D object to render the scene.
-	result = m_Resources->Render();
+	// Use the Direct3D 12 object to render the scene.
+	result = m_Resources->BeginScene(0.0f, 0.2f, 0.4f, 1.0f);
+	if (!result)
+	{
+		return false;
+	}
+
+	m_Resources->BeginDirect2D();
+
+	// Render text on the screen.
+	m_Text->Render(m_Resources->GetDirect2DDeviceContext());
+
+	m_Resources->EndDirect2D();
+
+	result = m_Resources->EndScene();
 	if (!result)
 	{
 		return false;

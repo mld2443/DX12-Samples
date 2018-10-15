@@ -75,15 +75,22 @@ void TextClass::Shutdown()
 }
 
 
-void TextClass::Render(ID2D1DeviceContext* deviceContext)
+bool TextClass::Render(ID2D1DeviceContext* deviceContext)
 {
+	HRESULT result;
+
+
 	deviceContext->BeginDraw();
 
 	deviceContext->DrawTextW(m_string.c_str(), (UINT32)m_string.size(), m_format, m_drawWindow, m_brush);
 
-	deviceContext->EndDraw();
+	result = deviceContext->EndDraw();
+	if (FAILED(result))
+	{
+		return false;
+	}
 
-	return;
+	return true;
 }
 
 

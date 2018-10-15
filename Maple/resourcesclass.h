@@ -44,14 +44,17 @@ public:
 	bool Initialize(int, int, HWND, bool, bool);
 	void Shutdown();
 
-	bool Render();
+	bool BeginScene(float, float, float, float);
+	void BeginDirect2D();
+	void EndDirect2D();
+	bool EndScene();
 
 	ID2D1Device4* GetDirect2DDevice();
 	ID2D1DeviceContext4* GetDirect2DDeviceContext();
 	IDWriteFactory* GetDirectWriteFactory();
 
 private:
-	bool InitializeDirect3D(int, int, HWND, bool, bool);
+	bool InitializeDirect3D12(int, int, HWND, bool, bool);
 	bool InitializeDirect2D();
 	bool InitializeDirectWrite();
 
@@ -65,9 +68,8 @@ private:
 	char				m_videoCardDescription[128];
 	IDXGISwapChain3*	m_swapChain;
 
-	// Direct3D
+	// D3D12
 	ID3D12Device*				m_d3d12Device;
-	ID3D11On12Device*			m_d3d11On12Device;
 	ID3D12CommandQueue*			m_commandQueue;
 	ID3D12DescriptorHeap*		m_renderTargetViewHeap;
 	ID3D12Resource*				m_backBufferRenderTarget[FRAME_BUFFER_COUNT];
@@ -79,10 +81,13 @@ private:
 	HANDLE						m_fenceEvent;
 	unsigned long long			m_fenceValue;
 
-	// Direct2D
+	// D3D11 & D2D
+	ID3D11On12Device*		m_d3d11On12Device;
+	ID3D11DeviceContext*	m_d3d11DeviceContext;
 	ID2D1Device4*			m_d2dDevice;
 	ID2D1DeviceContext4*	m_d2dDeviceContext;
-	ID2D1Bitmap1*			m_bitmap[FRAME_BUFFER_COUNT];
+	ID3D11Resource*			m_wrappedBackBuffers[FRAME_BUFFER_COUNT];
+	ID2D1Bitmap1*			m_bitmaps[FRAME_BUFFER_COUNT];
 
 	// DirectWrite
 	IDWriteFactory*	m_dWriteFactory;

@@ -9,7 +9,6 @@ ResourcesClass::ResourcesClass()
 	m_swapChain = nullptr;
 
 	m_d3d12Device = nullptr;
-	m_d3d11On12Device = nullptr;
 	m_commandQueue = nullptr;
 	m_renderTargetViewHeap = nullptr;
 	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
@@ -22,11 +21,14 @@ ResourcesClass::ResourcesClass()
 	m_fence = nullptr;
 	m_fenceEvent = nullptr;
 
+	m_d3d11On12Device = nullptr;
+	m_d3d11DeviceContext = nullptr;
 	m_d2dDevice = nullptr;
 	m_d2dDeviceContext = nullptr;
 	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
 	{
-		m_bitmap[i] = nullptr;
+		m_wrappedBackBuffers[i] = nullptr;
+		m_bitmaps[i] = nullptr;
 	}
 
 	m_dWriteFactory = nullptr;
@@ -49,7 +51,7 @@ bool ResourcesClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bo
 
 
 	// Initialize all direct3D resources.
-	result = InitializeDirect3D(screenHeight, screenWidth, hwnd, vsync, fullscreen);
+	result = InitializeDirect3D12(screenHeight, screenWidth, hwnd, vsync, fullscreen);
 	if (!result)
 	{
 		return false;
@@ -98,7 +100,7 @@ void ResourcesClass::Shutdown()
 }
 
 
-bool ResourcesClass::Render()
+bool ResourcesClass::BeginScene(float red, float green, float blue, float alpha)
 {
 	HRESULT result;
 	D3D12_RESOURCE_BARRIER barrier;
@@ -106,7 +108,6 @@ bool ResourcesClass::Render()
 	unsigned int renderTargetViewDescriptorSize;
 	float color[4];
 	ID3D12CommandList* ppCommandLists[1];
-	unsigned long long fenceToWaitFor;
 
 
 	// Reset (re-use) the memory associated command allocator.
@@ -136,25 +137,17 @@ bool ResourcesClass::Render()
 	// Get the render target view handle for the current back buffer.
 	renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
 	renderTargetViewDescriptorSize = m_d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	if (m_bufferIndex == 1)
-	{
-		renderTargetViewHandle.ptr += renderTargetViewDescriptorSize;
-	}
+	renderTargetViewHandle.ptr += renderTargetViewDescriptorSize * m_bufferIndex;
 
 	// Set the back buffer as the render target.
 	m_commandList->OMSetRenderTargets(1, &renderTargetViewHandle, FALSE, nullptr);
 
 	// Then set the color to clear the window to.
-	color[0] = 0.0;
-	color[1] = 0.5;
-	color[2] = 0.0;
-	color[3] = 1.0;
+	color[0] = red;
+	color[1] = green;
+	color[2] = blue;
+	color[3] = alpha;
 	m_commandList->ClearRenderTargetView(renderTargetViewHandle, color, 0, nullptr);
-
-	// Indicate that the back buffer will now be used to present.
-	barrier.Transition.StateBefore =	D3D12_RESOURCE_STATE_RENDER_TARGET;
-	barrier.Transition.StateAfter =		D3D12_RESOURCE_STATE_PRESENT;
-	m_commandList->ResourceBarrier(1, &barrier);
 
 	// Close the list of commands.
 	result = m_commandList->Close();
@@ -168,6 +161,42 @@ bool ResourcesClass::Render()
 
 	// Execute the list of commands.
 	m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+
+	return true;
+}
+
+
+void ResourcesClass::BeginDirect2D()
+{
+	// Acquire our wrapped render target resource for the current back buffer.
+	m_d3d11On12Device->AcquireWrappedResources(&m_wrappedBackBuffers[m_bufferIndex], 1);
+
+	// Render text directly to the back buffer.
+	m_d2dDeviceContext->SetTarget(m_bitmaps[m_bufferIndex]);
+
+	return;
+}
+
+
+void ResourcesClass::EndDirect2D()
+{
+	// Release our wrapped render target resource. Releasing 
+	// transitions the back buffer resource to the state specified
+	// as the OutState when the wrapped resource was created.
+	m_d3d11On12Device->ReleaseWrappedResources(&m_wrappedBackBuffers[m_bufferIndex], 1);
+
+	// Flush to submit the 11 command list to the shared command queue.
+	m_d3d11DeviceContext->Flush();
+
+	return;
+}
+
+
+bool ResourcesClass::EndScene()
+{
+	HRESULT result;
+	unsigned long long fenceToWaitFor;
+
 
 	// Finally present the back buffer to the screen since rendering is complete.
 	if (m_vsync_enabled)
@@ -205,8 +234,9 @@ bool ResourcesClass::Render()
 		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
-	// Alternate the back buffer index back and forth between 0 and 1 each frame.
-	m_bufferIndex == 0 ? m_bufferIndex = 1 : m_bufferIndex = 0;
+	// Update the back buffer index to point to the next frame.
+	++m_bufferIndex;
+	m_bufferIndex %= FRAME_BUFFER_COUNT;
 
 	return true;
 }
@@ -230,7 +260,7 @@ IDWriteFactory* ResourcesClass::GetDirectWriteFactory()
 }
 
 
-bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
+bool ResourcesClass::InitializeDirect3D12(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
 {
 	HRESULT result;
 	ID3D12Debug* debugController;
@@ -246,7 +276,6 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	int error;
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	IDXGISwapChain* swapChain;
-	ID3D11Device *d3d11Device;
 	D3D12_DESCRIPTOR_HEAP_DESC renderTargetViewHeapDesc;
 	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetViewHandle;
 
@@ -461,24 +490,6 @@ bool ResourcesClass::InitializeDirect3D(int screenHeight, int screenWidth, HWND 
 	factory->Release();
 	factory = nullptr;
 
-	// Create a D3D 11 device from our D3D 12 device and its command queue.
-	result = D3D11On12CreateDevice(m_d3d12Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
-								(IUnknown**)&m_commandQueue, 1, 0, &d3d11Device, nullptr, nullptr);
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Create a D3D11On12 device wrapper of our D3D 11 Device.
-	result = d3d11Device->QueryInterface(IID_PPV_ARGS(&m_d3d11On12Device));
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Release the D3D11 device.
-	d3d11Device = nullptr;
-
 	// Initialize the render target view heap description for the two back buffers.
 	ZeroMemory(&renderTargetViewHeapDesc, sizeof(renderTargetViewHeapDesc));
 
@@ -566,12 +577,12 @@ bool ResourcesClass::InitializeDirect2D()
 	HRESULT result;
 	D2D1_FACTORY_OPTIONS options;
 	ID2D1Factory5* d2dFactory;
+	ID3D11Device *d3d11Device;
 	IDXGIDevice* dxgiDevice;
 	IDXGISurface* dxgiSurface;
 	float dpiX, dpiY;
 	D2D1_BITMAP_PROPERTIES1 bitmapProperties;
 	D3D11_RESOURCE_FLAGS d3d11Flags;
-	ID3D11Resource* wrappedRenderTarget[FRAME_BUFFER_COUNT];
 
 
 	// Set the default options for the D2DFactory.
@@ -584,6 +595,21 @@ bool ResourcesClass::InitializeDirect2D()
 
 	// Create D2DFactory to get our device.
 	result = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, options, &d2dFactory);
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Create a D3D 11 device from our D3D 12 device and its command queue.
+	result = D3D11On12CreateDevice(m_d3d12Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
+								(IUnknown**)&m_commandQueue, 1, 0, &d3d11Device, &m_d3d11DeviceContext, nullptr);
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Create a D3D11On12 device wrapper of our D3D 11 Device.
+	result = d3d11Device->QueryInterface(IID_PPV_ARGS(&m_d3d11On12Device));
 	if (FAILED(result))
 	{
 		return false;
@@ -605,6 +631,9 @@ bool ResourcesClass::InitializeDirect2D()
 
 	// Retrieve the device context DPI to match the text DPI with.
 	d2dFactory->GetDesktopDpi(&dpiX, &dpiY);
+
+	// Release the D3D11 device.
+	d3d11Device = nullptr;
 
 	// Release the factory.
 	d2dFactory->Release();
@@ -650,21 +679,21 @@ bool ResourcesClass::InitializeDirect2D()
 		// ReleaseWrappedResources() is called on the 11On12 device, the resource 
 		// will be transitioned to the PRESENT state.
 		result = m_d3d11On12Device->CreateWrappedResource(m_backBufferRenderTarget[i], &d3d11Flags, D3D12_RESOURCE_STATE_RENDER_TARGET,
-														D3D12_RESOURCE_STATE_PRESENT, IID_PPV_ARGS(&wrappedRenderTarget[i]));
+														D3D12_RESOURCE_STATE_PRESENT, IID_PPV_ARGS(&m_wrappedBackBuffers[i]));
 		if (FAILED(result))
 		{
 			return false;
 		}
 
 		// Create a render target for D2D to draw directly to this back buffer.
-		result = wrappedRenderTarget[i]->QueryInterface(IID_PPV_ARGS(&dxgiSurface));
+		result = m_wrappedBackBuffers[i]->QueryInterface(IID_PPV_ARGS(&dxgiSurface));
 		if (FAILED(result))
 		{
 			return false;
 		}
 
 		//ThrowIfFailed(m_d2dDeviceContext->CreateBitmapFromDxgiSurface(surface.Get(), &bitmapProperties, &m_d2dRenderTargets[n]));
-		result = m_d2dDeviceContext->CreateBitmapFromDxgiSurface(dxgiSurface, &bitmapProperties, &m_bitmap[i]);
+		result = m_d2dDeviceContext->CreateBitmapFromDxgiSurface(dxgiSurface, &bitmapProperties, &m_bitmaps[i]);
 		if (FAILED(result))
 		{
 			return false;
@@ -762,13 +791,6 @@ void ResourcesClass::ShutdownDirect3D()
 		m_commandQueue = nullptr;
 	}
 
-	// Release the d3d11 wrapper device.
-	if (m_d3d11On12Device)
-	{
-		m_d3d11On12Device->Release();
-		m_d3d11On12Device = nullptr;
-	}
-
 	// Release the d3d12 device.
 	if (m_d3d12Device)
 	{
@@ -784,10 +806,16 @@ void ResourcesClass::ShutdownDirect2D()
 {
 	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
-		if (m_bitmap)
+		if (m_bitmaps)
 		{
-			m_bitmap[i]->Release();
-			m_bitmap[i] = nullptr;
+			m_bitmaps[i]->Release();
+			m_bitmaps[i] = nullptr;
+		}
+
+		if (m_wrappedBackBuffers[i])
+		{
+			m_wrappedBackBuffers[i]->Release();
+			m_wrappedBackBuffers[i] = nullptr;
 		}
 	}
 
@@ -801,6 +829,20 @@ void ResourcesClass::ShutdownDirect2D()
 	{
 		m_d2dDevice->Release();
 		m_d2dDevice = nullptr;
+	}
+
+	// Release the d3d11 device context.
+	if (m_d3d11DeviceContext)
+	{
+		m_d3d11DeviceContext->Release();
+		m_d3d11DeviceContext = nullptr;
+	}
+
+	// Release the d3d11 wrapper device.
+	if (m_d3d11On12Device)
+	{
+		m_d3d11On12Device->Release();
+		m_d3d11On12Device = nullptr;
 	}
 
 	return;

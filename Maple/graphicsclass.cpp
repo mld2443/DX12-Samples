@@ -6,6 +6,7 @@
 
 GraphicsClass::GraphicsClass()
 {
+    m_Camera = nullptr;
 	m_Resources = nullptr;
 	m_Text = nullptr;
 }
@@ -26,14 +27,25 @@ bool GraphicsClass::Initialize(int screenHeight, int screenWidth, HWND hwnd)
 	bool result;
 
 
-	// Create the Direct3D object.
+	// Create the camera object.
+	m_Camera = new CameraClass;
+	if (!m_Camera)
+	{
+		return false;
+	}
+
+	// Set the initial parameters of the camera.
+	m_Camera->SetPosition(0.0f, 0.0f, -5.0f);
+	m_Camera->SetLookDirection(0.0f, 0.0f, 1.0f);
+
+	// Create the resources object.
 	m_Resources = new ResourcesClass;
 	if (!m_Resources)
 	{
 		return false;
 	}
 
-	// Initialize the Direct3D object.
+	// Initialize the resources object.
 	result = m_Resources->Initialize(screenHeight, screenWidth, hwnd, VSYNC_ENABLED, FULL_SCREEN);
 	if (!result)
 	{
@@ -68,7 +80,7 @@ bool GraphicsClass::Initialize(int screenHeight, int screenWidth, HWND hwnd)
 
 void GraphicsClass::Shutdown()
 {
-	// Release the Text object.
+    // Release the Text object.
 	if (m_Text)
 	{
 		m_Text->Shutdown();
@@ -82,6 +94,13 @@ void GraphicsClass::Shutdown()
 		m_Resources->Shutdown();
 		delete m_Resources;
 		m_Resources = nullptr;
+	}
+
+	// Release the camera object.
+	if (m_Camera)
+	{
+		delete m_Camera;
+		m_Camera = nullptr;
 	}
 
 	return;
@@ -116,6 +135,9 @@ bool GraphicsClass::Render()
 	bool result;
 
 
+	// Generate the view matrix based on the camera's position.
+	m_Camera->Render();
+
 	// Use the Direct3D 12 object to render the scene.
 	result = m_Resources->BeginScene(0.2f, 0.2f, 0.2f, 1.0f);
 	if (!result)
@@ -123,13 +145,16 @@ bool GraphicsClass::Render()
 		return false;
 	}
 
+	// Signal our resources to hand off the pipeline to d2d.
 	m_Resources->BeginDirect2D();
 
 	// Render text on the screen.
 	m_Text->Render(m_Resources->GetDirect2DDeviceContext());
 
+	// Signal to the D2D rendering.
 	m_Resources->EndDirect2D();
 
+	// Attempt to present the current screen.
 	result = m_Resources->EndScene();
 	if (!result)
 	{

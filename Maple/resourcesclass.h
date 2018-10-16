@@ -58,7 +58,7 @@ private:
 	bool InitializeDirect2D();
 	bool InitializeDirectWrite();
 
-	void ShutdownDirect3D();
+	void ShutdownDirect3D12();
 	void ShutdownDirect2D();
 	void ShutdownDirectWrite();
 

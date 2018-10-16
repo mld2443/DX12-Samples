@@ -13,6 +13,7 @@
 ///////////////////////
 // MY CLASS INCLUDES //
 ///////////////////////
+#include "cameraclass.h"
 #include "resourcesclass.h"
 #include "textclass.h"
 
@@ -44,6 +45,7 @@ private:
 	bool Render();
 
 private:
+	CameraClass*	m_Camera;
 	ResourcesClass*	m_Resources;
 	TextClass*		m_Text;
 };

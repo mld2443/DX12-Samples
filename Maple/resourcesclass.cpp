@@ -11,7 +11,7 @@ ResourcesClass::ResourcesClass()
 	m_d3d12Device = nullptr;
 	m_commandQueue = nullptr;
 	m_renderTargetViewHeap = nullptr;
-	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	for (unsigned int i = 0; i < FRAME_BUFFER_COUNT; i++)
 	{
 		m_backBufferRenderTarget[i] = nullptr;
 	}
@@ -25,7 +25,7 @@ ResourcesClass::ResourcesClass()
 	m_d3d11DeviceContext = nullptr;
 	m_d2dDevice = nullptr;
 	m_d2dDeviceContext = nullptr;
-	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	for (unsigned int i = 0; i < FRAME_BUFFER_COUNT; i++)
 	{
 		m_wrappedBackBuffers[i] = nullptr;
 		m_bitmaps[i] = nullptr;
@@ -50,7 +50,7 @@ bool ResourcesClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bo
 	bool result;
 
 
-	// Initialize all direct3D resources.
+	// Initialize all direct3D 12 resources.
 	result = InitializeDirect3D12(screenHeight, screenWidth, hwnd, vsync, fullscreen);
 	if (!result)
 	{
@@ -87,7 +87,7 @@ void ResourcesClass::Shutdown()
 
 	ShutdownDirect2D();
 
-	ShutdownDirect3D();
+	ShutdownDirect3D12();
 
 	// Release the swap chain.
 	if (m_swapChain)
@@ -575,6 +575,7 @@ bool ResourcesClass::InitializeDirect3D12(int screenHeight, int screenWidth, HWN
 bool ResourcesClass::InitializeDirect2D()
 {
 	HRESULT result;
+	UINT d3d11DeviceFlags;
 	D2D1_FACTORY_OPTIONS options;
 	ID2D1Factory5* d2dFactory;
 	ID3D11Device *d3d11Device;
@@ -582,8 +583,11 @@ bool ResourcesClass::InitializeDirect2D()
 	IDXGISurface* dxgiSurface;
 	float dpiX, dpiY;
 	D2D1_BITMAP_PROPERTIES1 bitmapProperties;
-	D3D11_RESOURCE_FLAGS d3d11Flags;
+	D3D11_RESOURCE_FLAGS d3d11ResourceFlags;
 
+
+	// Set the direct3d 11 flag, necessary for d2d compatibility.
+	d3d11DeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
 	// Set the default options for the D2DFactory.
 	ZeroMemory(&options, sizeof(options));
@@ -591,6 +595,9 @@ bool ResourcesClass::InitializeDirect2D()
 #if defined(_DEBUG)
 	// If the project is in a debug build, enable Direct2D debugging via SDK Layers.
 	options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+
+	// Also enable d3d11 debugging.
+	d3d11DeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
 	// Create D2DFactory to get our device.
@@ -601,8 +608,8 @@ bool ResourcesClass::InitializeDirect2D()
 	}
 
 	// Create a D3D 11 device from our D3D 12 device and its command queue.
-	result = D3D11On12CreateDevice(m_d3d12Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
-								(IUnknown**)&m_commandQueue, 1, 0, &d3d11Device, &m_d3d11DeviceContext, nullptr);
+	result = D3D11On12CreateDevice(m_d3d12Device, d3d11DeviceFlags, nullptr, 0, (IUnknown**)&m_commandQueue,
+									1, 0, &d3d11Device, &m_d3d11DeviceContext, nullptr);
 	if (FAILED(result))
 	{
 		return false;
@@ -662,23 +669,21 @@ bool ResourcesClass::InitializeDirect2D()
 	bitmapProperties.colorContext =				NULL;
 
 	// Clear the memory of our pixel format.
-	ZeroMemory(&d3d11Flags, sizeof(d3d11Flags));
+	ZeroMemory(&d3d11ResourceFlags, sizeof(d3d11ResourceFlags));
 
 	// Set the properties of our bitmap.
-	d3d11Flags.BindFlags = D3D11_BIND_RENDER_TARGET;
+	d3d11ResourceFlags.BindFlags = D3D11_BIND_RENDER_TARGET;
 
-	for (UINT i = 0; i < FRAME_BUFFER_COUNT; i++)
+	for (unsigned int i = 0; i < FRAME_BUFFER_COUNT; i++)
 	{
-		//ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-		//m_d3d12Device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
-
 		// Create a wrapped 11On12 resource of this back buffer. Since we are 
 		// rendering all D3D12 content first and then all D2D content, we specify 
 		// the In resource state as RENDER_TARGET - because D3D12 will have last 
 		// used it in this state - and the Out resource state as PRESENT. When 
 		// ReleaseWrappedResources() is called on the 11On12 device, the resource 
 		// will be transitioned to the PRESENT state.
-		result = m_d3d11On12Device->CreateWrappedResource(m_backBufferRenderTarget[i], &d3d11Flags, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		result = m_d3d11On12Device->CreateWrappedResource(m_backBufferRenderTarget[i], &d3d11ResourceFlags,
+														D3D12_RESOURCE_STATE_RENDER_TARGET,
 														D3D12_RESOURCE_STATE_PRESENT, IID_PPV_ARGS(&m_wrappedBackBuffers[i]));
 		if (FAILED(result))
 		{
@@ -692,7 +697,7 @@ bool ResourcesClass::InitializeDirect2D()
 			return false;
 		}
 
-		//ThrowIfFailed(m_d2dDeviceContext->CreateBitmapFromDxgiSurface(surface.Get(), &bitmapProperties, &m_d2dRenderTargets[n]));
+		// Use that render target to create a bitmap onto which the D2D can draw directly.
 		result = m_d2dDeviceContext->CreateBitmapFromDxgiSurface(dxgiSurface, &bitmapProperties, &m_bitmaps[i]);
 		if (FAILED(result))
 		{
@@ -702,10 +707,6 @@ bool ResourcesClass::InitializeDirect2D()
 		// Release the DXGI surface device.
 		dxgiSurface->Release();
 		dxgiSurface = nullptr;
-
-		//rtvHandle.Offset(1, m_rtvDescriptorSize);
-
-		//ThrowIfFailed(m_d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
 	}
 
 	return true;
@@ -728,7 +729,7 @@ bool ResourcesClass::InitializeDirectWrite()
 }
 
 
-void ResourcesClass::ShutdownDirect3D()
+void ResourcesClass::ShutdownDirect3D12()
 {
 	int error;
 
@@ -768,7 +769,7 @@ void ResourcesClass::ShutdownDirect3D()
 	}
 
 	// Release the back buffer render target views.
-	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
+	for (unsigned int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
 		if (m_backBufferRenderTarget[i])
 		{
@@ -804,14 +805,16 @@ void ResourcesClass::ShutdownDirect3D()
 
 void ResourcesClass::ShutdownDirect2D()
 {
-	for (int i = 0; i < FRAME_BUFFER_COUNT; ++i)
+	for (unsigned int i = 0; i < FRAME_BUFFER_COUNT; ++i)
 	{
+		// Release the bitmap drawing surfaces.
 		if (m_bitmaps)
 		{
 			m_bitmaps[i]->Release();
 			m_bitmaps[i] = nullptr;
 		}
 
+		// Release the d3d11 wrapped back buffers.
 		if (m_wrappedBackBuffers[i])
 		{
 			m_wrappedBackBuffers[i]->Release();
@@ -819,12 +822,14 @@ void ResourcesClass::ShutdownDirect2D()
 		}
 	}
 
+	// Release the d2d device context.
 	if (m_d2dDeviceContext)
 	{
 		m_d2dDeviceContext->Release();
 		m_d2dDeviceContext = nullptr;
 	}
 
+	// Release the d2d device.
 	if (m_d2dDevice)
 	{
 		m_d2dDevice->Release();

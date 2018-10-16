@@ -243,7 +243,7 @@ LRESULT CALLBACK SystemClass::MessageHandler(HWND hwnd, UINT umsg, WPARAM wparam
 }
 
 
-void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
+bool SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 {
 	WNDCLASSEX wc;
 	DEVMODE dmScreenSettings;
@@ -251,13 +251,13 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 
 
 	// Get an external pointer to this object.
-	ApplicationHandle = this;
+	g_ApplicationHandle = this;
 
 	// Get the instance of this application.
 	m_hinstance = GetModuleHandle(NULL);
 
 	// Give the application a name.
-	m_applicationName = L"Engine";
+	m_applicationName = L"D3D12 Sample";
 
 	// Setup the windows class with default settings.
 	wc.style =			CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -274,7 +274,10 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 	wc.cbSize =			sizeof(WNDCLASSEX);
 
 	// Register the window class.
-	RegisterClassEx(&wc);
+	if (!RegisterClassEx(&wc))
+	{
+		return false;
+	}
 
 	// Determine the resolution of the clients desktop screen.
 	screenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -310,8 +313,12 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 
 	// Create the window with the screen settings and get the handle to it.
 	m_hwnd = CreateWindowEx(WS_EX_APPWINDOW, m_applicationName, m_applicationName,
-							WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP,
+							WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_OVERLAPPEDWINDOW,
 							posX, posY, screenWidth, screenHeight, NULL, NULL, m_hinstance, NULL);
+	if (!m_hwnd)
+	{
+		return false;
+	}
 
 	// Bring the window up on the screen and set it as main focus.
 	ShowWindow(m_hwnd, SW_SHOW);
@@ -319,9 +326,9 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 	SetFocus(m_hwnd);
 
 	// Hide the mouse cursor.
-	ShowCursor(false);
+	ShowCursor(true);
 
-	return;
+	return true;
 }
 
 
@@ -345,7 +352,7 @@ void SystemClass::ShutdownWindows()
 	m_hinstance = NULL;
 
 	// Release the pointer to this class.
-	ApplicationHandle = NULL;
+	g_ApplicationHandle = NULL;
 
 	return;
 }
@@ -372,7 +379,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT umessage, WPARAM wparam, LPARAM lparam)
 	// All other messages pass to the message handler in the system class.
 	default:
 	{
-		return ApplicationHandle->MessageHandler(hwnd, umessage, wparam, lparam);
+		return g_ApplicationHandle->MessageHandler(hwnd, umessage, wparam, lparam);
 	}
 	}
 }

@@ -19,8 +19,11 @@
 ///////////////////////
 // MY CLASS INCLUDES //
 ///////////////////////
-#include "inputclass.h"
+#include "cpuclass.h"
+#include "fpsclass.h"
 #include "graphicsclass.h"
+#include "inputclass.h"
+#include "timerclass.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +44,7 @@ public:
 
 private:
 	bool Frame();
-	void InitializeWindows(int&, int&);
+	bool InitializeWindows(int&, int&);
 	void ShutdownWindows();
 
 private:
@@ -51,6 +54,9 @@ private:
 
 	InputClass*		m_Input;
 	GraphicsClass*	m_Graphics;
+	FpsClass*		m_Fps;
+	CpuClass*		m_Cpu;
+	TimerClass*		m_Timer;
 };
 
 
@@ -63,4 +69,4 @@ static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 /////////////
 // GLOBALS //
 /////////////
-static SystemClass* ApplicationHandle = 0;
+static SystemClass* g_ApplicationHandle = 0;

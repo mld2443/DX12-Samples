@@ -8,6 +8,9 @@ SystemClass::SystemClass()
 {
 	m_Input = nullptr;
 	m_Graphics = nullptr;
+	m_Fps = nullptr;
+	m_Cpu = nullptr;
+	m_Timer = nullptr;
 }
 
 
@@ -58,12 +61,69 @@ bool SystemClass::Initialize()
 		return false;
 	}
 
+	// Create the fps object.
+	m_Fps = new FpsClass;
+	if (!m_Fps)
+	{
+		return false;
+	}
+
+	// Initialize the fps object.
+	m_Fps->Initialize(1.0f);
+
+	// Create the cpu object.
+	m_Cpu = new CpuClass;
+	if (!m_Cpu)
+	{
+		return false;
+	}
+
+	// Initialize the cpu object.
+	m_Cpu->Initialize();
+
+	// Create the timer object.
+	m_Timer = new TimerClass;
+	if (!m_Timer)
+	{
+		return false;
+	}
+
+	// Initialize the timer object.
+	result = m_Timer->Initialize();
+	if (!result)
+	{
+		MessageBox(m_hwnd, L"Could not initialize the Timer object.", L"Error", MB_OK);
+		return false;
+	}
+
 	return true;
 }
 
 
 void SystemClass::Shutdown()
 {
+	// Release the timer object.
+	if (m_Timer)
+	{
+		delete m_Timer;
+		m_Timer = nullptr;
+	}
+
+	// Release the cpu object.
+	if (m_Cpu)
+	{
+		m_Cpu->Shutdown();
+		delete m_Cpu;
+		m_Cpu = nullptr;
+	}
+
+	// Release the fps object.
+	if (m_Fps)
+	{
+		delete m_Fps;
+		m_Fps = nullptr;
+	}
+
 	// Release the graphics object.
 	if (m_Graphics)
 	{
@@ -132,6 +192,11 @@ bool SystemClass::Frame()
 	bool result;
 
 
+	// Update the system stats.
+	m_Timer->Frame();
+	m_Fps->Frame();
+	m_Cpu->Frame();
+
 	// Check if the user pressed escape and wants to exit the application.
 	if (m_Input->IsKeyDown(VK_ESCAPE))
 	{
@@ -139,7 +204,7 @@ bool SystemClass::Frame()
 	}
 
 	// Do the frame processing for the graphics object.
-	result = m_Graphics->Frame();
+	result = m_Graphics->Frame(m_Fps->GetFps(), m_Cpu->GetCpuPercentage(), m_Timer->GetTime());
 	if (!result)
 	{
 		return false;
@@ -178,7 +243,7 @@ LRESULT CALLBACK SystemClass::MessageHandler(HWND hwnd, UINT umsg, WPARAM wparam
 }
 
 
-void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
+bool SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 {
 	WNDCLASSEX wc;
 	DEVMODE dmScreenSettings;
@@ -186,13 +251,13 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 
 
 	// Get an external pointer to this object.
-	ApplicationHandle = this;
+	g_ApplicationHandle = this;
 
 	// Get the instance of this application.
 	m_hinstance = GetModuleHandle(NULL);
 
 	// Give the application a name.
-	m_applicationName = L"Engine";
+	m_applicationName = L"D3D12 Sample";
 
 	// Setup the windows class with default settings.
 	wc.style =			CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -209,7 +274,10 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 	wc.cbSize =			sizeof(WNDCLASSEX);
 
 	// Register the window class.
-	RegisterClassEx(&wc);
+	if (!RegisterClassEx(&wc))
+	{
+		return false;
+	}
 
 	// Determine the resolution of the clients desktop screen.
 	screenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -245,8 +313,12 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 
 	// Create the window with the screen settings and get the handle to it.
 	m_hwnd = CreateWindowEx(WS_EX_APPWINDOW, m_applicationName, m_applicationName,
-							WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP,
+							WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_OVERLAPPEDWINDOW,
 							posX, posY, screenWidth, screenHeight, NULL, NULL, m_hinstance, NULL);
+	if (!m_hwnd)
+	{
+		return false;
+	}
 
 	// Bring the window up on the screen and set it as main focus.
 	ShowWindow(m_hwnd, SW_SHOW);
@@ -254,9 +326,9 @@ void SystemClass::InitializeWindows(int& screenHeight, int& screenWidth)
 	SetFocus(m_hwnd);
 
 	// Hide the mouse cursor.
-	ShowCursor(false);
+	ShowCursor(true);
 
-	return;
+	return true;
 }
 
 
@@ -280,7 +352,7 @@ void SystemClass::ShutdownWindows()
 	m_hinstance = NULL;
 
 	// Release the pointer to this class.
-	ApplicationHandle = NULL;
+	g_ApplicationHandle = NULL;
 
 	return;
 }
@@ -307,7 +379,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT umessage, WPARAM wparam, LPARAM lparam)
 	// All other messages pass to the message handler in the system class.
 	default:
 	{
-		return ApplicationHandle->MessageHandler(hwnd, umessage, wparam, lparam);
+		return g_ApplicationHandle->MessageHandler(hwnd, umessage, wparam, lparam);
 	}
 	}
 }

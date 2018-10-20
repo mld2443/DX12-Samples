@@ -61,6 +61,7 @@ bool ResourcesClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bo
 	result = InitializeDirect2D();
 	if (!result)
 	{
+		MessageBox(hwnd, L"Could not Initialize Direct2D.", L"Initializer Failure", MB_OK);
 		return false;
 	}
 
@@ -68,6 +69,7 @@ bool ResourcesClass::Initialize(int screenHeight, int screenWidth, HWND hwnd, bo
 	result = InitializeDirectWrite();
 	if (!result)
 	{
+		MessageBox(hwnd, L"Could not Initialize DirectWrite.", L"Initializer Failure", MB_OK);
 		return false;
 	}
 

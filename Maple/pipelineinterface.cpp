@@ -26,21 +26,41 @@ PipelineInterface::~PipelineInterface()
 }
 
 
-bool PipelineInterface::Initialize(ID3D12Device* device, unsigned int frameIndex)
+bool PipelineInterface::Initialize(ID3D12Device* device, HWND hwnd, unsigned int frameIndex)
 {
-	bool result;
+	HRESULT result;
 
 
 	// Initialize pipeline specific resources.
-	result = InitializePipeline(device);
-	if (!result)
+	InitializePipeline(device);
+	if (!m_rootSignature || !m_pipelineState)
 	{
+		MessageBox(hwnd, L"The pipeline was not initialized properly.", L"Initializer Failure", MB_OK);
 		return false;
 	}
 
-	// Initialize the command list and its allocators.
-	result = InitializeCommandList(device, frameIndex);
-	if (!result)
+	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
+	{
+		// Create command allocators, one for each frame.
+		result = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator[i]));
+		if (FAILED(result))
+		{
+			MessageBox(hwnd, L"Could not create Direct3D 12 command allocators.", L"Initializer Failure", MB_OK);
+			return false;
+		}
+	}
+
+	// Create a command list.
+	result = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[frameIndex], nullptr, IID_PPV_ARGS(&m_commandList));
+	if (FAILED(result))
+	{
+		MessageBox(hwnd, L"Could not create command list.", L"Initializer Failure", MB_OK);
+		return false;
+	}
+
+	// Initially we need to close the command list during initialization as it is created in a recording state.
+	result = m_commandList->Close();
+	if (FAILED(result))
 	{
 		return false;
 	}
@@ -51,6 +71,9 @@ bool PipelineInterface::Initialize(ID3D12Device* device, unsigned int frameIndex
 
 void PipelineInterface::Shutdown()
 {
+	// First, release implementation specific resources.
+	ShutdownPipeline();
+
 	// Release the command list.
 	if (m_commandList)
 	{
@@ -84,37 +107,3 @@ void PipelineInterface::Shutdown()
 
 	return;
 }
-
-
-bool PipelineInterface::InitializeCommandList(ID3D12Device* device, unsigned int frameIndex)
-{
-	HRESULT result;
-
-
-	for (int i = 0; i < FRAME_BUFFER_COUNT; i++)
-	{
-		// Create command allocators, one for each frame.
-		result = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator[i]));
-		if (FAILED(result))
-		{
-			return false;
-		}
-	}
-
-	// Create a command list.
-	result = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator[frameIndex], nullptr, IID_PPV_ARGS(&m_commandList));
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	// Initially we need to close the command list during initialization as it is created in a recording state.
-	result = m_commandList->Close();
-	if (FAILED(result))
-	{
-		return false;
-	}
-
-	return true;
-}
-

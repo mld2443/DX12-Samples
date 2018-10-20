@@ -80,6 +80,7 @@
   <ItemGroup>
     <ClCompile Include="cpuclass.cpp" />
     <ClCompile Include="fpsclass.cpp" />
+    <ClCompile Include="pipelineinterface.cpp" />
     <ClCompile Include="resourcesclass.cpp" />
     <ClCompile Include="cameraclass.cpp" />
     <ClCompile Include="graphicsclass.cpp" />
@@ -92,6 +93,7 @@
   <ItemGroup>
     <ClInclude Include="cpuclass.h" />
     <ClInclude Include="fpsclass.h" />
+    <ClInclude Include="pipelineinterface.h" />
     <ClInclude Include="resourcesclass.h" />
     <ClInclude Include="cameraclass.h" />
     <ClInclude Include="graphicsclass.h" />

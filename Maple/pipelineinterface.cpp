@@ -26,13 +26,13 @@ PipelineInterface::~PipelineInterface()
 }
 
 
-bool PipelineInterface::Initialize(ID3D12Device* device, HWND hwnd, unsigned int frameIndex)
+bool PipelineInterface::Initialize(ID3D12Device* device, HWND hwnd, unsigned int frameIndex, int screenWidth, int screenHeight)
 {
 	HRESULT result;
 
 
 	// Initialize pipeline specific resources.
-	InitializePipeline(device);
+	InitializePipeline(device, screenWidth, screenHeight);
 	if (!m_rootSignature || !m_pipelineState)
 	{
 		MessageBox(hwnd, L"The pipeline was not initialized properly.", L"Initializer Failure", MB_OK);

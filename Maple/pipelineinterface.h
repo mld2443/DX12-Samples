@@ -26,11 +26,14 @@ public:
 	PipelineInterface(const PipelineInterface&);
 	~PipelineInterface();
 
-	bool Initialize(ID3D12Device*, HWND, unsigned int);
+	bool Initialize(ID3D12Device*, HWND, unsigned int, int, int);
 	void Shutdown();
 
+	virtual bool UpdatePipeline(unsigned int) = 0;
+	virtual ID3D12CommandList* ClosePipeline() = 0;
+
 protected:
-	virtual bool InitializePipeline(ID3D12Device*) = 0;
+	virtual bool InitializePipeline(ID3D12Device*, int, int) = 0;
 	virtual void ShutdownPipeline() = 0;
 
 protected:
